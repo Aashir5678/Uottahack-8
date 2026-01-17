@@ -1,3 +1,4 @@
 pip install -q -U google-genai
 pip install opencv-python
 pip install pillow
+pip install picamera2
