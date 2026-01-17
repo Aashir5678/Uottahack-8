@@ -1,21 +1,28 @@
+from dotenv import load_dotenv
+from pathlib import Path
+import os
 import requests
 import json
-import os
 import base64
 import time
-from pathlib import Path
 
-# ----------------- CONFIG -----------------
+# ----------------- LOAD .env -----------------
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 API_KEY = os.environ.get("API_KEY")
 if not API_KEY:
     raise RuntimeError("API_KEY environment variable not set")
+
+# ----------------- API CONFIG -----------------
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
 HEADERS = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
 }
+
 
 BASE_DIR = Path(__file__).resolve().parent
 IMAGES_DIR = BASE_DIR / "images"
