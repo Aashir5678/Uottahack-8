@@ -1,21 +1,14 @@
-
-# Author: Aashir Alam (fixed & simplified)
-
-"""
-SERVER HOST MUST DISABLE HOTSPOT FOR CLIENTS TO JOIN
-
-
-"""
-
 import socket
 import threading
+import cv2
+import numpy as np
 
 PORT = 5050
 HEADER = 128
 FORMAT = "utf-8"
 
-DISCONNECT_MSG = "!DISCONNECT"
-WRONG_PASS_MSG = "!WRONGPASSWORD"
+IMG_MSG = "!IMG"
+CMD_MSG = "!CMD"
 
 class Server:
     def __init__(self, server_pass=""):
@@ -23,9 +16,8 @@ class Server:
         self.ADDR = (self.SERVER, PORT)
         self.server_password = server_pass
 
-        self.clients = {}
-        self.messages = []
-        self.lock = threading.Lock()
+        self.img_buff = None
+        self.img_lock = threading.Lock()
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -37,69 +29,86 @@ class Server:
         while True:
             conn, addr = self.server.accept()
             print(f"[NEW CONNECTION] {addr}")
-            thread = threading.Thread(target=self.handle_client, args=(conn, addr))
+            thread = threading.Thread(target=self.handle_client, args=(conn,))
             thread.start()
 
-    def send(self, conn, msg):
-        message = msg.encode(FORMAT)
-        msg_len = len(message)
-        header = str(msg_len).encode(FORMAT)
-        header += b" " * (HEADER - len(header))
-        conn.sendall(header)
-        conn.sendall(message)
+    # ----------------- SOCKET HELPERS -----------------
+
+    def recv_exact(self, conn, size):
+        data = b""
+        while len(data) < size:
+            packet = conn.recv(size - len(data))
+            if not packet:
+                return None
+            data += packet
+        return data
 
     def receive(self, conn):
-        header = conn.recv(HEADER).decode(FORMAT)
+        header = conn.recv(HEADER).decode(FORMAT).strip()
         if not header:
             return None
-        length = int(header.strip())
-        return conn.recv(length).decode(FORMAT)
 
+        if header == IMG_MSG:
+            return self.receive_img(conn)
 
-    
-    def handle_client(self, conn, addr):
-        try:
-            username = self.receive(conn)
-            password = self.receive(conn)
+        elif header == CMD_MSG:
+            length = int(conn.recv(HEADER).decode(FORMAT).strip())
+            return conn.recv(length).decode(FORMAT)
 
-            if self.server_password and password != self.server_password:
-                self.send(conn, WRONG_PASS_MSG)
-                conn.close()
+        return None
+
+    # ----------------- IMAGE HANDLING -----------------
+
+    def receive_img(self, conn):
+        print("[SERVER] Receiving image")
+
+        size = int(conn.recv(HEADER).decode(FORMAT).strip())
+        img_bytes = self.recv_exact(conn, size)
+
+        if img_bytes is None:
+            return None
+
+        with self.img_lock:
+            self.img_buff = img_bytes
+
+        return IMG_MSG
+
+    def display_img(self):
+        with self.img_lock:
+            if not self.img_buff:
                 return
+            img_data = self.img_buff
 
-            with self.lock:
-                self.clients[username] = conn
-                join_msg = f"{username} has joined."
-                print(join_msg)
-                self.broadcast(join_msg)
+        frame = cv2.imdecode(
+            np.frombuffer(img_data, dtype=np.uint8),
+            cv2.IMREAD_COLOR
+        )
 
-            while True:
-                msg = self.receive(conn)
-                if msg is None:
-                    break
+        if frame is None:
+            return
 
-                full_msg = f"{username}: {msg}"
-                print(full_msg)
-                self.broadcast(full_msg)
+        cv2.imshow("webcam", frame)
+        cv2.waitKey(1)
 
-        except:
-            pass
+    # ----------------- CLIENT HANDLER -----------------
 
-        finally:
-            with self.lock:
-                if username in self.clients:
-                    del self.clients[username]
-            conn.close()
-            leave_msg = f"{username} has disconnected."
-            print(leave_msg)
-            self.broadcast(leave_msg)
+    def handle_client(self, conn):
+        recv_thread = threading.Thread(
+            target=self.get_frames, args=(conn,), daemon=True
+        )
+        recv_thread.start()
 
-    def broadcast(self, msg):
-        for conn in self.clients.values():
-            try:
-                self.send(conn, msg)
-            except:
-                pass
+        while True:
+            self.display_img()
+
+    def get_frames(self, conn):
+        while True:
+            msg = self.receive(conn)
+            if msg is None:
+                break
+
+        conn.close()
+        print("[DISCONNECTED] Client left")
 
 
 if __name__ == "__main__":

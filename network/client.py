@@ -1,70 +1,83 @@
-
-# Author: Aashir Alam (fixed & simplified)
-
 import socket
 import threading
+import cv2
+from time import sleep
 
 PORT = 5050
 HEADER = 128
 FORMAT = "utf-8"
 
-class Client:
-    def __init__(self, username, server_ip, server_pass=""):
-        self.username = username
-        self.server_ip = server_ip
-        self.server_pass = server_pass
-        self.connected = True
+IMG_MSG = "!IMG"
+CMD_MSG = "!CMD"
 
+class Client:
+    def __init__(self, server_ip):
+        self.server_ip = server_ip
+        self.connected = True
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    def send(self, msg):
-        message = msg.encode(FORMAT)
-        msg_len = len(message)
-        header = str(msg_len).encode(FORMAT)
+    # ----------------- SEND HELPERS -----------------
+
+    def send_image(self, img_bytes):
+        size = len(img_bytes)
+
+        # Send IMG header
+        header = IMG_MSG.encode(FORMAT)
         header += b" " * (HEADER - len(header))
         self.sock.sendall(header)
-        self.sock.sendall(message)
+
+        # Send image size
+        size_header = str(size).encode(FORMAT)
+        size_header += b" " * (HEADER - len(size_header))
+        self.sock.sendall(size_header)
+
+        # Send image data
+        self.sock.sendall(img_bytes)
+
+    # ----------------- RECEIVE (OPTIONAL) -----------------
 
     def receive(self):
-        header = self.sock.recv(HEADER).decode(FORMAT)
+        header = self.sock.recv(HEADER).decode(FORMAT).strip()
         if not header:
             return None
-        length = int(header.strip())
+
+        length = int(self.sock.recv(HEADER).decode(FORMAT).strip())
         return self.sock.recv(length).decode(FORMAT)
 
     def listen(self):
         while self.connected:
             try:
                 msg = self.receive()
-                if msg:
-                    print(msg)
+                if msg is None:
+                    break
             except:
                 break
+
+    # ----------------- MAIN -----------------
 
     def start(self):
         self.sock.connect((self.server_ip, PORT))
         print("[CONNECTED]")
 
-        self.send(self.username)
-        self.send(self.server_pass)
+        threading.Thread(target=self.listen, daemon=True).start()
 
-        thread = threading.Thread(target=self.listen, daemon=True)
-        thread.start()
+        cap = cv2.VideoCapture(0)
 
         while True:
-            msg = input()
-            if msg.lower() == "q":
-                break
-            self.send(msg)
+            ret, frame = cap.read()
+            if not ret:
+                continue
 
-        self.connected = False
+            encoded = cv2.imencode(".jpg", frame)[1].tobytes()
+            self.send_image(encoded)
+
+            sleep(0.1)  # ~10 FPS
+
+        cap.release()
         self.sock.close()
 
 
 if __name__ == "__main__":
-    username = input("Username: ")
     server_ip = input("Server IP address: ")
-    server_pass = input("Server password (if any): ")
-
-    client = Client(username, server_ip, server_pass)
+    client = Client(server_ip)
     client.start()
