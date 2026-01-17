@@ -1,2 +1,38 @@
+# =====================
+# Python
+# =====================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# =====================
+# Virtual Environments
+# =====================
 .env
-./Ai
+.env.*
+venv/
+env/
+.venv/
+
+# =====================
+# OS / Editor Junk
+# =====================
+.DS_Store
+Thumbs.db
+.vscode/
+
+# =====================
+# Generated Data
+# =====================
+Ai/images/
+images/
+*.jpg
+*.png
+*.jpeg
+
+# =====================
+# Logs / Temp
+# =====================
+*.log
+*.tmp

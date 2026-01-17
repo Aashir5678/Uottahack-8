@@ -2,6 +2,7 @@ import socket
 import threading
 import cv2
 import numpy as np
+import os
 
 PORT = 5050
 HEADER = 128
@@ -9,6 +10,9 @@ FORMAT = "utf-8"
 
 IMG_MSG = "!IMG"
 CMD_MSG = "!CMD"
+
+SAVE_EVERY_N_FRAMES = 10
+
 
 class Server:
     def __init__(self, server_pass=""):
@@ -20,6 +24,10 @@ class Server:
         self.img_lock = threading.Lock()
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        self.frame_count = 0
+        self.save_dir = "images"
+        os.makedirs(self.save_dir, exist_ok=True)
 
     def start(self):
         self.server.bind(self.ADDR)
@@ -87,6 +95,16 @@ class Server:
         if frame is None:
             return
 
+        # -------- Frame Counter --------
+        self.frame_count += 1
+
+        # -------- Save every N frames --------
+        if self.frame_count % SAVE_EVERY_N_FRAMES == 0:
+            filename = f"frame_{self.frame_count:06d}.jpg"
+            filepath = os.path.join(self.save_dir, filename)
+            cv2.imwrite(filepath, frame)
+
+        # -------- Display --------
         cv2.imshow("webcam", frame)
         cv2.waitKey(1)
 
