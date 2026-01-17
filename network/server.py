@@ -1,11 +1,11 @@
-
-
 import socket
 import threading
 import cv2
 import time
 import numpy as np
 import os
+
+# ----------------- CONSTANTS -----------------
 
 PORT = 5050
 HEADER = 128
@@ -16,24 +16,32 @@ CMD_MSG = "!CMD"
 
 SAVE_EVERY_N_FRAMES = 10
 
+
+# ----------------- SERVER -----------------
+
 class Server:
     def __init__(self, server_pass=""):
         self.SERVER = "0.0.0.0"
         self.ADDR = (self.SERVER, PORT)
         self.server_password = server_pass
 
-        # self.start_time = time.time()
+        # Timing / FPS
         self.start_time = 0
         self.frames = 0
 
-
+        # Image buffer
         self.img_buff = None
         self.img_lock = threading.Lock()
 
+        # Socket
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.save_dir = "images"
+        # ---- Save directory (Ai/images) ----
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.save_dir = os.path.join(BASE_DIR, "Ai", "images")
         os.makedirs(self.save_dir, exist_ok=True)
+
+    # ----------------- START SERVER -----------------
 
     def start(self):
         self.server.bind(self.ADDR)
@@ -43,7 +51,11 @@ class Server:
         while True:
             conn, addr = self.server.accept()
             print(f"[NEW CONNECTION] {addr}")
-            thread = threading.Thread(target=self.handle_client, args=(conn,))
+            thread = threading.Thread(
+                target=self.handle_client,
+                args=(conn,),
+                daemon=True
+            )
             thread.start()
 
     # ----------------- SOCKET HELPERS -----------------
@@ -74,9 +86,6 @@ class Server:
     # ----------------- IMAGE HANDLING -----------------
 
     def receive_img(self, conn):
-        
-        print("[SERVER] Receiving image")
-
         size = int(conn.recv(HEADER).decode(FORMAT).strip())
         img_bytes = self.recv_exact(conn, size)
 
@@ -103,17 +112,20 @@ class Server:
         if frame is None:
             return
 
-        
+        # -------- FPS --------
+        elapsed = time.time() - self.start_time
+        if elapsed > 0:
+            fps = round(self.frames / elapsed, 2)
+            if self.frames % 30 == 0:
+                print(f"FPS: {fps}")
 
-        fps = round(self.frames / (time.time() - self.start_time), 2)
-        print("fps: " + str(fps))
-
+        # -------- Save every N frames --------
         if self.frames % SAVE_EVERY_N_FRAMES == 0:
             filename = f"frame_{self.frames:06d}.jpg"
             filepath = os.path.join(self.save_dir, filename)
             cv2.imwrite(filepath, frame)
 
-
+        # -------- Display --------
         cv2.imshow("frame", frame)
         cv2.waitKey(1)
 
@@ -121,7 +133,9 @@ class Server:
 
     def handle_client(self, conn):
         recv_thread = threading.Thread(
-            target=self.get_frames, args=(conn,), daemon=True
+            target=self.get_frames,
+            args=(conn,),
+            daemon=True
         )
         recv_thread.start()
 
@@ -139,6 +153,7 @@ class Server:
         conn.close()
         print("[DISCONNECTED] Client left")
 
+# ----------------- MAIN -----------------
 
 if __name__ == "__main__":
     password = input("Set server password (leave blank for none): ")
