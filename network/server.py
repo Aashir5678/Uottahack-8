@@ -1,6 +1,9 @@
+
+
 import socket
 import threading
 import cv2
+import time
 import numpy as np
 import os
 
@@ -13,19 +16,22 @@ CMD_MSG = "!CMD"
 
 SAVE_EVERY_N_FRAMES = 10
 
-
 class Server:
     def __init__(self, server_pass=""):
         self.SERVER = "0.0.0.0"
         self.ADDR = (self.SERVER, PORT)
         self.server_password = server_pass
 
+        # self.start_time = time.time()
+        self.start_time = 0
+        self.frames = 0
+
+
         self.img_buff = None
         self.img_lock = threading.Lock()
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.frame_count = 0
         self.save_dir = "images"
         os.makedirs(self.save_dir, exist_ok=True)
 
@@ -68,6 +74,7 @@ class Server:
     # ----------------- IMAGE HANDLING -----------------
 
     def receive_img(self, conn):
+        
         print("[SERVER] Receiving image")
 
         size = int(conn.recv(HEADER).decode(FORMAT).strip())
@@ -79,6 +86,7 @@ class Server:
         with self.img_lock:
             self.img_buff = img_bytes
 
+        self.frames += 1
         return IMG_MSG
 
     def display_img(self):
@@ -95,17 +103,18 @@ class Server:
         if frame is None:
             return
 
-        # -------- Frame Counter --------
-        self.frame_count += 1
+        
 
-        # -------- Save every N frames --------
-        if self.frame_count % SAVE_EVERY_N_FRAMES == 0:
-            filename = f"frame_{self.frame_count:06d}.jpg"
+        fps = round(self.frames / (time.time() - self.start_time), 2)
+        print("fps: " + str(fps))
+
+        if self.frames % SAVE_EVERY_N_FRAMES == 0:
+            filename = f"frame_{self.frames:06d}.jpg"
             filepath = os.path.join(self.save_dir, filename)
             cv2.imwrite(filepath, frame)
 
-        # -------- Display --------
-        cv2.imshow("webcam", frame)
+
+        cv2.imshow("frame", frame)
         cv2.waitKey(1)
 
     # ----------------- CLIENT HANDLER -----------------
@@ -115,6 +124,8 @@ class Server:
             target=self.get_frames, args=(conn,), daemon=True
         )
         recv_thread.start()
+
+        self.start_time = time.time()
 
         while True:
             self.display_img()
