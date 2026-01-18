@@ -3,6 +3,7 @@ import threading
 import cv2
 from time import sleep
 
+# ----------------- CONSTANTS -----------------
 
 PORT = 5050
 HEADER = 128
@@ -11,39 +12,64 @@ FORMAT = "utf-8"
 IMG_MSG = "!IMG"
 CMD_MSG = "!CMD"
 
+
+# ----------------- CLIENT -----------------
+
 class Client:
     def __init__(self, server_ip):
         self.server_ip = server_ip
         self.connected = True
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = None
 
-    # ----------------- SEND HELPERS -----------------
+    # ----------------- SOCKET HELPERS -----------------
+
+    def connect(self):
+        # Force IPv4 and clean routing on macOS
+        self.sock = socket.create_connection(
+            (self.server_ip, PORT),
+            timeout=5,
+            source_address=("", 0)
+        )
+        self.sock.settimeout(None)
+        print("[CONNECTED]")
 
     def send_image(self, img_bytes):
         size = len(img_bytes)
 
-        # Send IMG header
-        header = IMG_MSG.encode(FORMAT)
-        header += b" " * (HEADER - len(header))
+        header = IMG_MSG.encode(FORMAT).ljust(HEADER, b" ")
+        size_header = str(size).encode(FORMAT).ljust(HEADER, b" ")
+
         self.sock.sendall(header)
-
-        # Send image size
-        size_header = str(size).encode(FORMAT)
-        size_header += b" " * (HEADER - len(size_header))
         self.sock.sendall(size_header)
-
-        # Send image data
         self.sock.sendall(img_bytes)
 
     # ----------------- RECEIVE (OPTIONAL) -----------------
 
+    def recv_exact(self, size):
+        data = b""
+        while len(data) < size:
+            chunk = self.sock.recv(size - len(data))
+            if not chunk:
+                return None
+            data += chunk
+        return data
+
     def receive(self):
-        header = self.sock.recv(HEADER).decode(FORMAT).strip()
+        header = self.recv_exact(HEADER)
         if not header:
             return None
 
-        length = int(self.sock.recv(HEADER).decode(FORMAT).strip())
-        return self.sock.recv(length).decode(FORMAT)
+        header = header.decode(FORMAT).strip()
+        length_bytes = self.recv_exact(HEADER)
+        if not length_bytes:
+            return None
+
+        length = int(length_bytes.decode(FORMAT).strip())
+        payload = self.recv_exact(length)
+        if not payload:
+            return None
+
+        return payload.decode(FORMAT, errors="ignore")
 
     def listen(self):
         while self.connected:
@@ -54,31 +80,39 @@ class Client:
             except:
                 break
 
-    # ----------------- MAIN -----------------
+    # ----------------- MAIN LOOP -----------------
 
     def start(self):
-        self.sock.connect((self.server_ip, PORT))
-        print("[CONNECTED]")
+        print("Connecting to:", self.server_ip, PORT)
+        self.connect()
 
         threading.Thread(target=self.listen, daemon=True).start()
 
         cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            print("Camera not accessible")
+            return
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                continue
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    continue
 
-            encoded = cv2.imencode(".jpg", frame)[1].tobytes()
-            self.send_image(encoded)
+                ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if not ok:
+                    continue
 
-            sleep(0.1)  # ~10 FPS
+                self.send_image(buf.tobytes())
+                sleep(0.1)  # ~10 FPS
+        finally:
+            cap.release()
+            self.sock.close()
 
-        cap.release()
-        self.sock.close()
 
+# ----------------- ENTRY -----------------
 
 if __name__ == "__main__":
-    server_ip = input("Server IP address: ")
-    client = Client(server_ip)
-    client.start()
+    # server_ip = input("Server IP address: ").strip()
+    server_ip = "10.0.0.245"
+    Client(server_ip).start()
