@@ -1,5 +1,3 @@
-
-
 import socket
 import threading
 import cv2

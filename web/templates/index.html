@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rover Command Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="grid">
+    <header class="panel hero">
+      <div>
+        <p class="eyebrow">Pi RC</p>
+        <h1>Rover Command Deck</h1>
+        <p class="sub">Steer, stream, and send quick commands to the car while watching the live camera.</p>
+      </div>
+      <div class="pill status-pill" id="connection-status">Awaiting camera link…</div>
+    </header>
+
+    <section class="panel video-panel">
+      <div class="panel-heading">
+        <h2>Live Feed</h2>
+        <div class="pill metric">FPS <span id="fps">0</span></div>
+      </div>
+      <div class="video-frame">
+        <img id="video" alt="Live camera feed">
+        <div class="video-hint">Frames auto-refresh every few hundred milliseconds.</div>
+      </div>
+    </section>
+
+    <section class="panel control-panel">
+      <div class="panel-heading">
+        <h2>Drive Controls</h2>
+        <div class="pill metric">Throttle <span id="speed-value">60</span>%</div>
+      </div>
+
+      <div class="control-pad">
+        <button class="command-btn ghost" data-command="lights:on">Toggle Lights</button>
+        <div class="pad-grid">
+          <div></div>
+          <button class="command-btn primary" data-command="forward">▲</button>
+          <div></div>
+          <button class="command-btn primary" data-command="left">◀</button>
+          <button class="command-btn danger" data-command="stop">■</button>
+          <button class="command-btn primary" data-command="right">▶</button>
+          <div></div>
+          <button class="command-btn primary" data-command="backward">▼</button>
+          <div></div>
+        </div>
+        <button class="command-btn ghost" data-command="horn">Horn</button>
+      </div>
+
+      <label class="slider">
+        <span>Throttle</span>
+        <input type="range" min="0" max="100" value="60" id="speed">
+      </label>
+
+      <div class="command-row">
+        <input id="command-input" placeholder="Custom command e.g. lights:on or cam:flip">
+        <button id="send-command" class="command-btn accent">Send</button>
+      </div>
+    </section>
+
+    <section class="panel telemetry">
+      <div class="panel-heading">
+        <h2>Status</h2>
+        <div class="pill metric">Frames <span id="frame-count">0</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <p class="label">Link</p>
+          <p class="value" id="status-text">Idle</p>
+        </div>
+        <div class="stat">
+          <p class="label">Last Command</p>
+          <p class="value" id="last-command">None</p>
+        </div>
+      </div>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
