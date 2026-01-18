@@ -5,8 +5,6 @@ const frameCountEl = document.getElementById("frame-count");
 const statusTextEl = document.getElementById("status-text");
 const lastCommandEl = document.getElementById("last-command");
 const logEl = document.getElementById("log");
-const speedSlider = document.getElementById("speed");
-const speedValue = document.getElementById("speed-value");
 const commandInput = document.getElementById("command-input");
 const sendCommandBtn = document.getElementById("send-command");
 
@@ -84,14 +82,6 @@ function refreshFrame() {
 function wireControls() {
   document.querySelectorAll("[data-command]").forEach((btn) => {
     btn.addEventListener("click", () => sendCommand(btn.dataset.command));
-  });
-
-  speedSlider.addEventListener("input", (e) => {
-    speedValue.textContent = e.target.value;
-  });
-
-  speedSlider.addEventListener("change", (e) => {
-    sendCommand(`speed:${e.target.value}`);
   });
 
   sendCommandBtn.addEventListener("click", () => {
